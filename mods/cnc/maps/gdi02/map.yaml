@@ -1,10 +1,8 @@
-MapFormat: 7
+MapFormat: 11
 
 RequiresMod: cnc
 
-Title: Knock out the Refinery
-
-Description: Defend your position, deploy the MCV, then build a sizable force to search out and destroy the Nod base in the area.\n\nAll Nod units and structures must be either destroyed or captured to complete objective.
+Title: 02:   Knock out the Refinery
 
 Author: Westwood Studios
 
@@ -16,23 +14,9 @@ Bounds: 31,31,31,31
 
 Visibility: MissionSelector
 
-Type: Campaign
+Categories: Campaign
 
-Videos:
-	Briefing: gdi2.vqa
-	GameWon: flag.vqa
-	GameLost: gameover.vqa
-
-Options:
-	Crates: False
-	Creeps: False
-	Fog: True
-	Shroud: True
-	AllyBuildRadius: False
-	FragileAlliances: False
-	StartingCash: 5000
-	ConfigurableStartingUnits: False
-	ShortGame: False
+LockPreview: True
 
 Players:
 	PlayerReference@GDI:
@@ -40,30 +24,25 @@ Players:
 		Playable: True
 		AllowBots: False
 		Required: True
-		LockRace: True
-		Race: gdi
+		LockFaction: True
+		Faction: gdi
 		LockColor: True
-		ColorRamp: 31,222,183
+		Color: F5D378
 		LockSpawn: True
 		LockTeam: True
 		Allies: GDI
 		Enemies: Nod
 	PlayerReference@Nod:
 		Name: Nod
-		Race: nod
-		ColorRamp: 3,255,127
+		Faction: nod
+		Color: FE1100
 		Allies: Nod
 		Enemies: GDI
 	PlayerReference@Neutral:
 		Name: Neutral
 		OwnsWorld: True
 		NonCombatant: True
-		Race: gdi
-	PlayerReference@Creeps:
-		Name: Creeps
-		NonCombatant: True
-		Race: Random
-		Enemies: Nod, GDI
+		Faction: gdi
 
 Actors:
 	Actor0: sbag
@@ -303,7 +282,7 @@ Actors:
 	Actor78: pyle
 		Location: 55,51
 		Owner: GDI
-		Health: 0.34375
+		Health: 34
 	Actor81: nuke
 		Location: 55,32
 		Owner: Nod
@@ -313,16 +292,16 @@ Actors:
 	Actor83: nuke
 		Location: 53,52
 		Owner: GDI
-		Health: 0.025
+		Health: 2
 	Actor85: bggy
 		Location: 52,39
 		Owner: Nod
-		Health: 0.5195313
+		Health: 52
 		Facing: 96
 	Actor87: jeep
 		Location: 54,49
 		Owner: GDI
-		Health: 0.3320313
+		Health: 33
 		Facing: 96
 	Actor88: jeep
 		Location: 57,49
@@ -331,12 +310,12 @@ Actors:
 	Actor89: bggy
 		Location: 33,37
 		Owner: Nod
-		Health: 0.578125
+		Health: 58
 		Facing: 96
 	Actor91: bggy
 		Location: 59,39
 		Owner: Nod
-		Health: 0.5
+		Health: 50
 		Facing: 160
 	Actor92: jeep
 		Location: 56,54
@@ -535,7 +514,7 @@ Actors:
 	Actor133: e1
 		Location: 51,49
 		Owner: GDI
-		Health: 0.9765625
+		Health: 98
 		Facing: 128
 		SubCell: 4
 	Actor134: e1
@@ -546,7 +525,7 @@ Actors:
 	Actor135: e1
 		Location: 52,50
 		Owner: GDI
-		Health: 0.5195313
+		Health: 52
 		Facing: 224
 		SubCell: 4
 	Actor136: e1
@@ -615,18 +594,18 @@ Actors:
 	RushBuggy: bggy
 		Location: 51,50
 		Owner: Nod
-		Health: 0.1835938
+		Health: 18
 		Facing: 96
 	RushRifle1: e1
 		Location: 54,48
 		Owner: Nod
-		Health: 0.4765625
+		Health: 48
 		Facing: 128
 		SubCell: 3
 	RushRifle2: e1
 		Location: 52,52
 		Owner: Nod
-		Health: 0.3164063
+		Health: 32
 		Facing: 96
 		SubCell: 0
 	RushRifle3: e1
@@ -644,148 +623,6 @@ Actors:
 		Location: 54,55
 		Owner: Neutral
 
-Smudges:
+Rules: cnc|rules/campaign-maprules.yaml, cnc|rules/campaign-tooltips.yaml, cnc|rules/campaign-palettes.yaml, rules.yaml
 
-Rules:
-	World:
-		-SpawnMPUnits:
-		-MPStartLocations:
-		-CrateSpawner:
-		LuaScript:
-			Scripts: gdi02.lua
-		ObjectivesPanel:
-			PanelName: MISSION_OBJECTIVES
-	Player:
-		-ConquestVictoryConditions:
-		MissionObjectives:
-			EarlyGameOver: true
-	^Vehicle:
-		Tooltip:
-			GenericVisibility: Enemy
-			ShowOwnerRow: false
-	^Tank:
-		Tooltip:
-			GenericVisibility: Enemy
-			ShowOwnerRow: false
-	^Helicopter:
-		Tooltip:
-			GenericVisibility: Enemy
-			ShowOwnerRow: false
-	^Infantry:
-		Tooltip:
-			GenericVisibility: Enemy
-			ShowOwnerRow: false
-	^Plane:
-		Tooltip:
-			GenericVisibility: Enemy
-			ShowOwnerRow: false
-	^Ship:
-		Tooltip:
-			GenericVisibility: Enemy
-			ShowOwnerRow: false
-	^Building:
-		Tooltip:
-			GenericVisibility: Enemy
-			ShowOwnerRow: false
-	^Wall:
-		Tooltip:
-			ShowOwnerRow: false
-	SBAG:
-		-Crushable:
-	^Husk:
-		Tooltip:
-			GenericVisibility: Enemy, Ally, Neutral
-			GenericStancePrefix: false
-			ShowOwnerRow: false
-	HARV:
-		Harvester:
-			SearchFromProcRadius: 32
-			SearchFromOrderRadius: 20
-	PROC:
-		Buildable:
-			Prerequisites: ~disabled
-	SILO:
-		Buildable:
-			Prerequisites: ~disabled
-	WEAP:
-		Buildable:
-			Prerequisites: ~disabled
-	HQ:
-		Buildable:
-			Prerequisites: ~disabled
-	NUK2:
-		Buildable:
-			Prerequisites: ~disabled
-	FIX:
-		Buildable:
-			Prerequisites: ~disabled
-	HPAD:
-		Buildable:
-			Prerequisites: ~disabled
-	EYE:
-		Buildable:
-			Prerequisites: ~disabled
-	GUN:
-		Buildable:
-			Prerequisites: ~disabled
-	GTWR:
-		Buildable:
-			Prerequisites: ~disabled
-	ATWR:
-		Buildable:
-			Prerequisites: ~disabled
-	BRIK:
-		Buildable:
-			Prerequisites: ~disabled
-	E2:
-		Buildable:
-			Prerequisites: ~disabled
-	E3:
-		Buildable:
-			Prerequisites: ~disabled
-	E4:
-		Buildable:
-			Prerequisites: ~disabled
-	E5:
-		Buildable:
-			Prerequisites: ~disabled
-	E6:
-		Buildable:
-			Prerequisites: ~disabled
-	RMBO:
-		Buildable:
-			Prerequisites: ~disabled
-	AFLD:
-		Buildable:
-			Prerequisites: ~disabled
-	TMPL:
-		Buildable:
-			Prerequisites: ~disabled
-	OBLI:
-		Buildable:
-			Prerequisites: ~disabled
-	SAM:
-		Buildable:
-			Prerequisites: ~disabled
-	OLDLST:
-		Inherits: LST
-		-WithRoof:
-		-Selectable:
-		RejectsOrders:
-
-Sequences:
-	oldlst:
-		idle: lst
-			Start: 0
-			Facings: 1
-			ZOffset: -1024
-
-VoxelSequences:
-
-Weapons:
-
-Voices:
-
-Notifications:
-
-Translations:
+Sequences: sequences.yaml

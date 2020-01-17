@@ -1,3 +1,11 @@
+--[[
+   Copyright 2007-2018 The OpenRA Developers (see AUTHORS)
+   This file is part of OpenRA, which is free software. It is made
+   available to you under the terms of the GNU General Public License
+   as published by the Free Software Foundation, either version 3 of
+   the License, or (at your option) any later version. For more
+   information, see COPYING.
+]]
 FrenchSquad = { "2tnk", "2tnk", "mcv" }
 
 TimerTicks = DateTime.Minutes(10)
@@ -24,18 +32,24 @@ NewSovietRallyPoints = { SovietRally3, SovietRally4, SovietRally8 }
 
 ParaWaves =
 {
-	{ AttackTicks, { "SovietSquad", SovietRally5 } },
-	{ 0, { "SovietSquad", SovietRally6 } },
-	{ AttackTicks * 2, { "SovietSquad", SovietParaDrop3 } },
-	{ 0, { "SovietPlatoonUnits", SovietRally5 } },
-	{ 0, { "SovietPlatoonUnits", SovietRally6 } },
-	{ 0, { "SovietSquad", SovietRally2 } },
-	{ AttackTicks * 2, { "SovietSquad", SovietParaDrop2 } },
-	{ AttackTicks * 2, { "SovietSquad", SovietParaDrop1 } },
-	{ AttackTicks * 3, { "SovietSquad", SovietParaDrop1 } }
+	{ delay = AttackTicks, type = "SovietSquad", target = SovietRally5  },
+	{ delay = 0, type = "SovietSquad", target = SovietRally6 },
+	{ delay = AttackTicks * 2, type = "SovietSquad", target = SovietParaDrop3 },
+	{ delay = 0, type = "SovietPlatoonUnits", target = SovietRally5 },
+	{ delay = 0, type = "SovietPlatoonUnits", target = SovietRally6 },
+	{ delay = 0, type = "SovietSquad", target = SovietRally2 },
+	{ delay = AttackTicks * 2, type = "SovietSquad", target = SovietParaDrop2 },
+	{ delay = AttackTicks * 2, type = "SovietSquad", target = SovietParaDrop1 },
+	{ delay = AttackTicks * 3, type = "SovietSquad", target = SovietParaDrop1 }
 }
 
-IdleHunt = function(unit) Trigger.OnIdle(unit, unit.Hunt) end
+IdleHunt = function(unit)
+	Trigger.OnIdle(unit, function(a)
+		if a.IsInWorld then
+			a.Hunt()
+		end
+	end)
+end
 
 GuardHarvester = function(unit, harvester)
 	if not unit.IsDead then
@@ -55,15 +69,20 @@ GuardHarvester = function(unit, harvester)
 				unit.AttackMove(start)
 			end
 		end)
+
+		Trigger.OnCapture(unit, function()
+			Trigger.ClearAll(unit)
+		end)
 	end
 end
 
+ticked = TimerTicks
 Tick = function()
 	if soviets.HasNoRequiredUnits() then
 		if DestroyObj then
 			allies.MarkCompletedObjective(DestroyObj)
 		else
-			DestroyObj = allies.AddPrimaryObjective("Destroy all Soviet forces in the area!")
+			DestroyObj = allies.AddPrimaryObjective("Destroy all Soviet forces in the area.")
 			allies.MarkCompletedObjective(DestroyObj)
 		end
 	end
@@ -94,15 +113,23 @@ Tick = function()
 		end
 	end
 
-	if DateTime.Minutes(5) == TimerTicks - DateTime.GameTime then
+	if DateTime.Minutes(5) == ticked then
 		Media.PlaySpeechNotification(allies, "WarningFiveMinutesRemaining")
 		InitCountDown()
+	end
+
+	if ticked > 0 then
+		UserInterface.SetMissionText("Soviet reinforcements arrive in " .. Utils.FormatTime(ticked), TimerColor)
+		ticked = ticked - 1
+	elseif ticked == 0 then
+		FinishTimer()
+		ticked = ticked - 1
 	end
 end
 
 SendSovietParadrops = function(table)
-	local paraproxy = Actor.Create(table[1], false, { Owner = soviets })
-	units = paraproxy.SendParatroopers(table[2].CenterPosition)
+	local paraproxy = Actor.Create(table.type, false, { Owner = soviets })
+	units = paraproxy.SendParatroopers(table.target.CenterPosition)
 	Utils.Do(units, function(unit) IdleHunt(unit) end)
 	paraproxy.Destroy()
 end
@@ -116,39 +143,51 @@ end
 SpawnSovietVehicle = function(spawnpoints, rallypoints)
 	local route = Utils.RandomInteger(1, #spawnpoints + 1)
 	local rally = Utils.RandomInteger(1, #rallypoints + 1)
-	local unit = Reinforcements.Reinforce(soviets, { Utils.Random(SovietVehicles) }, { spawnpoints[route].Location, rallypoints[rally].Location })[1]
+	local unit = Reinforcements.Reinforce(soviets, { Utils.Random(SovietVehicles) }, { spawnpoints[route].Location })[1]
+	unit.AttackMove(rallypoints[rally].Location)
 	IdleHunt(unit)
+
+	Trigger.OnCapture(unit, function()
+		Trigger.ClearAll(unit)
+	end)
 end
 
 SpawnAndAttack = function(types, entry)
 	local units = Reinforcements.Reinforce(soviets, types, { entry })
 	Utils.Do(units, function(unit)
 		IdleHunt(unit)
+
+		Trigger.OnCapture(unit, function()
+			Trigger.ClearAll(unit)
+		end)
 	end)
 	return units
 end
 
+SendFrenchReinforcements = function()
+	local camera = Actor.Create("camera", true, { Owner = allies, Location = SovietRally1.Location })
+	Beacon.New(allies, FranceEntry.CenterPosition - WVec.New(0, 3 * 1024, 0))
+	Media.PlaySpeechNotification(allies, "AlliedReinforcementsArrived")
+	Reinforcements.Reinforce(allies, FrenchSquad, { FranceEntry.Location, FranceRally.Location })
+	Trigger.AfterDelay(DateTime.Seconds(3), function() camera.Destroy() end)
+end
+
 FrenchReinforcements = function()
 	Camera.Position = SovietRally1.CenterPosition
-	local camera = Actor.Create("camera", true, { Owner = allies, Location = SovietRally1.Location })
 
 	if drum1.IsDead or drum2.IsDead or drum3.IsDead then
-		Media.PlaySpeechNotification(allies, "AlliedReinforcementsArrived")
-		Reinforcements.Reinforce(allies, FrenchSquad, { FranceEntry.Location, FranceRally.Location })
-		Trigger.AfterDelay(DateTime.Seconds(3), function() camera.Destroy() end)
+		SendFrenchReinforcements()
 		return
 	end
 
 	powerproxy = Actor.Create("powerproxy.parabombs", false, { Owner = allies })
-	powerproxy.SendAirstrike(drum1.CenterPosition, false, 256 - 28)
-	powerproxy.SendAirstrike(drum2.CenterPosition, false, 256 - 32)
-	powerproxy.SendAirstrike(drum3.CenterPosition, false, 256 - 36)
+	powerproxy.SendAirstrike(drum1.CenterPosition, false, Facing.NorthEast + 4)
+	powerproxy.SendAirstrike(drum2.CenterPosition, false, Facing.NorthEast)
+	powerproxy.SendAirstrike(drum3.CenterPosition, false, Facing.NorthEast - 4)
 	powerproxy.Destroy()
 
 	Trigger.AfterDelay(DateTime.Seconds(3), function()
-		Media.PlaySpeechNotification(allies, "AlliedReinforcementsArrived")
-		Reinforcements.Reinforce(allies, FrenchSquad, { FranceEntry.Location, FranceRally.Location })
-		Trigger.AfterDelay(DateTime.Seconds(3), function() camera.Destroy() end)
+		SendFrenchReinforcements()
 	end)
 end
 
@@ -174,24 +213,36 @@ FinalAttack = function()
 	insert(units4)
 	insert(units5)
 
-	Trigger.OnAllKilled(units, function()
+	Trigger.OnAllKilledOrCaptured(units, function()
 		if not DestroyObj then
 			Media.DisplayMessage("Excellent work Commander! We have reinforced our position enough to initiate a counter-attack.", "Incoming Report")
-			DestroyObj = allies.AddPrimaryObjective("Destroy the remaining Soviet forces in the area!")
+			DestroyObj = allies.AddPrimaryObjective("Destroy the remaining Soviet forces in the area.")
 		end
 		allies.MarkCompletedObjective(SurviveObj)
 	end)
 end
 
+FinishTimer = function()
+	for i = 0, 9, 1 do
+		local c = TimerColor
+		if i % 2 == 0 then
+			c = HSLColor.White
+		end
+
+		Trigger.AfterDelay(DateTime.Seconds(i), function() UserInterface.SetMissionText("Soviet reinforcements have arrived!", c) end)
+	end
+	Trigger.AfterDelay(DateTime.Seconds(10), function() UserInterface.SetMissionText("") end)
+end
+
 wave = 1
 SendParadrops = function()
-	SendSovietParadrops(ParaWaves[wave][2])
+	SendSovietParadrops(ParaWaves[wave])
 
 	wave = wave + 1
 	if wave > #ParaWaves then
 		Trigger.AfterDelay(AttackTicks, FrenchReinforcements)
 	else
-		Trigger.AfterDelay(ParaWaves[wave][1], SendParadrops)
+		Trigger.AfterDelay(ParaWaves[wave].delay, SendParadrops)
 	end
 end
 
@@ -204,11 +255,11 @@ SetupBridges = function()
 		end
 	end
 
-	Media.DisplayMessage("Commander! The Soviets destroyed the brigdes to disable our reinforcements. Repair them for additional reinforcements.", "Incoming Report")
-	RepairBridges = allies.AddSecondaryObjective("Repair the two southern brigdes.")
+	Media.DisplayMessage("Commander! The Soviets destroyed the bridges to disable our reinforcements. Repair them for additional reinforcements.", "Incoming Report")
+	RepairBridges = allies.AddSecondaryObjective("Repair the two southern bridges.")
 
-	local bridgeA = Map.ActorsInCircle(BrokenBridge1.CenterPosition, WRange.FromCells(1), function(self) return self.Type == "bridge1" end)
-	local bridgeB = Map.ActorsInCircle(BrokenBridge2.CenterPosition, WRange.FromCells(1), function(self) return self.Type == "bridge1" end)
+	local bridgeA = Map.ActorsInCircle(BrokenBridge1.CenterPosition, WDist.FromCells(1), function(self) return self.Type == "bridge1" end)
+	local bridgeB = Map.ActorsInCircle(BrokenBridge2.CenterPosition, WDist.FromCells(1), function(self) return self.Type == "bridge1" end)
 
 	Utils.Do(bridgeA, function(bridge)
 		Trigger.OnDamaged(bridge, function()
@@ -265,6 +316,7 @@ end
 
 InitMission = function()
 	Camera.Position = AlliesBase.CenterPosition
+	TimerColor = HSLColor.Red
 
 	Trigger.AfterDelay(DateTime.Seconds(1), function() Media.PlaySpeechNotification(allies, "MissionTimerInitialised") end)
 
@@ -274,7 +326,6 @@ InitMission = function()
 		SpawnSovietVehicle(NewSovietEntryPoints, NewSovietRallyPoints)
 		FinalAttack()
 		Producing = false
-		Timer.Destroy()
 	end)
 
 	Trigger.AfterDelay(AttackTicks, SendParadrops)
@@ -310,6 +361,9 @@ SetupSoviets = function()
 			GuardHarvester(unit, Harvester1)
 		end)
 	end)
+	Trigger.OnCapture(Harvester1, function()
+		Trigger.ClearAll(Harvester1)
+	end)
 
 	Harvester2.FindResources()
 	Trigger.OnDamaged(Harvester2, function()
@@ -327,20 +381,18 @@ SetupSoviets = function()
 			end)
 		end)
 	end)
+	Trigger.OnCapture(Harvester2, function()
+		Trigger.ClearAll(Harvester2)
+	end)
 
 	Trigger.AfterDelay(0, function()
-		local buildings = Map.ActorsInBox(Map.TopLeft, Map.BottomRight, function(self) return self.Owner == soviets and self.HasProperty("StartBuildingRepairs") end)
+		local buildings = Utils.Where(Map.ActorsInWorld, function(self) return self.Owner == soviets and self.HasProperty("StartBuildingRepairs") end)
 		Utils.Do(buildings, function(actor)
 			Trigger.OnDamaged(actor, function(building)
 				if building.Owner == soviets and building.Health < building.MaxHealth * 3/4 then
 					building.StartBuildingRepairs()
 				end
 			end)
-		end)
-
-		local units = Map.ActorsInBox(Map.TopLeft, Map.BottomRight, function(self) return self.Owner == soviets and self.HasProperty("AutoTarget") end)
-		Utils.Do(units, function(unit)
-			unit.Stance = "Defend"
 		end)
 	end)
 end

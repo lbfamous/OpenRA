@@ -1,45 +1,51 @@
+^BasePlayer:
+	AlwaysVisible:
+	Shroud:
+
+EditorPlayer:
+	Inherits: ^BasePlayer
+
 Player:
+	Inherits: ^BasePlayer
 	TechTree:
 	ClassicProductionQueue@Building:
 		Type: Building
-		BuildSpeed: .4
 		LowPowerSlowdown: 3
 		QueuedAudio: Building
 		ReadyAudio: ConstructionComplete
+		LimitedAudio: BuildingInProgress
 		SpeedUp: True
-		RequireOwner: false
 	ClassicProductionQueue@Defense:
 		Type: Defense
-		BuildSpeed: .4
 		LowPowerSlowdown: 3
 		QueuedAudio: Building
 		ReadyAudio: ConstructionComplete
+		LimitedAudio: BuildingInProgress
 		SpeedUp: True
-		RequireOwner: false
 	ClassicProductionQueue@Vehicle:
 		Type: Vehicle
-		BuildSpeed: .4
 		LowPowerSlowdown: 3
+		QueuedAudio: Building
+		LimitedAudio: BuildingInProgress
 		SpeedUp: True
-		RequireOwner: false
+		BuildTimeSpeedReduction: 100, 75, 60, 50
 	ClassicProductionQueue@Infantry:
 		Type: Infantry
-		BuildSpeed: .4
 		LowPowerSlowdown: 3
+		LimitedAudio: BuildingInProgress
 		SpeedUp: True
-		RequireOwner: false
 	ClassicProductionQueue@Ship:
 		Type: Ship
-		BuildSpeed: .4
 		LowPowerSlowdown: 3
+		QueuedAudio: Building
+		LimitedAudio: BuildingInProgress
 		SpeedUp: True
-		RequireOwner: false
 	ClassicProductionQueue@Aircraft:
 		Type: Aircraft
-		BuildSpeed: .4
 		LowPowerSlowdown: 3
+		QueuedAudio: Building
+		LimitedAudio: BuildingInProgress
 		SpeedUp: True
-		RequireOwner: false
 	PlaceBuilding:
 	SupportPowerManager:
 	ScriptTriggers:
@@ -48,14 +54,26 @@ Player:
 	PowerManager:
 	AllyRepair:
 	PlayerResources:
-	ActorGroupProxy:
+		InsufficientFundsNotification: InsufficientFunds
 	DeveloperMode:
-	PlayerColorPalette:
-		BasePalette: player
-		RemapIndex: 80, 81, 82, 83, 84, 85, 86, 87, 88, 89, 90, 91, 92, 93, 94, 95
-	PlayerHighlightPalette:
+		CheckboxDisplayOrder: 9
 	GpsWatcher:
 	Shroud:
+		FogCheckboxDisplayOrder: 3
+	LobbyPrerequisiteCheckbox@GLOBALBOUNTY:
+		ID: bounty
+		Label: Kill Bounties
+		Description: Players receive cash bonuses when killing enemy units
+		Enabled: False
+		DisplayOrder: 8
+		Prerequisites: global-bounty
+	LobbyPrerequisiteCheckbox@GLOBALFACTUNDEPLOY:
+		ID: factundeploy
+		Label: Redeployable MCVs
+		Description: Allow undeploying Construction Yard.
+		Enabled: True
+		DisplayOrder: 7
+		Prerequisites: global-factundeploy
 	FrozenActorLayer:
 	BaseAttackNotifier:
 	PlayerStatistics:
@@ -63,14 +81,27 @@ Player:
 	ProvidesTechPrerequisite@infonly:
 		Name: Infantry Only
 		Prerequisites: techlevel.infonly
+		Id: infantryonly
 	ProvidesTechPrerequisite@low:
 		Name: Low
 		Prerequisites: techlevel.infonly, techlevel.low
+		Id: low
 	ProvidesTechPrerequisite@medium:
 		Name: Medium
 		Prerequisites: techlevel.infonly, techlevel.low, techlevel.medium
+		Id: medium
+	ProvidesTechPrerequisite@high:
+		Name: No Superweapons
+		Prerequisites: techlevel.infonly, techlevel.low, techlevel.medium, techlevel.high
+		Id: nosuperweapons
 	ProvidesTechPrerequisite@unrestricted:
 		Name: Unrestricted
-		Prerequisites: techlevel.infonly, techlevel.low, techlevel.medium, techlevel.unrestricted
-	GlobalUpgradeManager:
-
+		Prerequisites: techlevel.infonly, techlevel.low, techlevel.medium, techlevel.high, techlevel.unrestricted
+		Id: unrestricted
+	GrantConditionOnPrerequisiteManager:
+	EnemyWatcher:
+	VeteranProductionIconOverlay:
+		Image: iconchevrons
+		Sequence: veteran
+	ResourceStorageWarning:
+	PlayerExperience:

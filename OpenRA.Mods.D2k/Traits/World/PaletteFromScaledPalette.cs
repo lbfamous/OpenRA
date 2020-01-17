@@ -1,15 +1,18 @@
 #region Copyright & License Information
 /*
- * Copyright 2007-2015 The OpenRA Developers (see AUTHORS)
+ * Copyright 2007-2018 The OpenRA Developers (see AUTHORS)
  * This file is part of OpenRA, which is free software. It is made
  * available to you under the terms of the GNU General Public License
- * as published by the Free Software Foundation. For more information,
- * see COPYING.
+ * as published by the Free Software Foundation, either version 3 of
+ * the License, or (at your option) any later version. For more
+ * information, see COPYING.
  */
 #endregion
 
+using System.Collections.Generic;
 using System.Drawing;
 using OpenRA.Graphics;
+using OpenRA.Mods.Common.Traits;
 using OpenRA.Traits;
 
 namespace OpenRA.Mods.D2k.Traits
@@ -17,9 +20,11 @@ namespace OpenRA.Mods.D2k.Traits
 	[Desc("Create a palette by applying a scale and offset to the colors in another palette.")]
 	class PaletteFromScaledPaletteInfo : ITraitInfo
 	{
+		[FieldLoader.Require, PaletteDefinition]
 		[Desc("Internal palette name")]
 		public readonly string Name = null;
 
+		[FieldLoader.Require, PaletteReference]
 		[Desc("The name of the palette to base off.")]
 		public readonly string BasePalette = null;
 
@@ -35,7 +40,7 @@ namespace OpenRA.Mods.D2k.Traits
 		public object Create(ActorInitializer init) { return new PaletteFromScaledPalette(this); }
 	}
 
-	class PaletteFromScaledPalette : ILoadsPalettes
+	class PaletteFromScaledPalette : ILoadsPalettes, IProvidesAssetBrowserPalettes
 	{
 		readonly PaletteFromScaledPaletteInfo info;
 		public PaletteFromScaledPalette(PaletteFromScaledPaletteInfo info) { this.info = info; }
@@ -45,6 +50,8 @@ namespace OpenRA.Mods.D2k.Traits
 			var remap = new ScaledPaletteRemap(info.Scale, info.Offset);
 			wr.AddPalette(info.Name, new ImmutablePalette(wr.Palette(info.BasePalette).Palette, remap), info.AllowModifiers);
 		}
+
+		public IEnumerable<string> PaletteNames { get { yield return info.Name; } }
 	}
 
 	class ScaledPaletteRemap : IPaletteRemap

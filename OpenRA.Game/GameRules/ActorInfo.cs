@@ -1,10 +1,11 @@
 #region Copyright & License Information
 /*
- * Copyright 2007-2015 The OpenRA Developers (see AUTHORS)
+ * Copyright 2007-2018 The OpenRA Developers (see AUTHORS)
  * This file is part of OpenRA, which is free software. It is made
  * available to you under the terms of the GNU General Public License
- * as published by the Free Software Foundation. For more information,
- * see COPYING.
+ * as published by the Free Software Foundation, either version 3 of
+ * the License, or (at your option) any later version. For more
+ * information, see COPYING.
  */
 #endregion
 
@@ -16,29 +17,42 @@ using OpenRA.Traits;
 
 namespace OpenRA
 {
-	// TODO: This is not exported into the documentation yet.
-	[Desc("A unit/building inside the game. Every rules starts with one and adds trait to it.",
-		"Special actors like world or player are usually defined in system.yaml and affect everything.")]
+	/// <summary>
+	/// A unit/building inside the game. Every rules starts with one and adds trait to it.
+	/// </summary>
 	public class ActorInfo
 	{
-		[Desc("The actor name can be anything, but the sprites used in the Render*: traits default to this one.",
-			"If you add an ^ in front of the name, the engine will recognize this as a collection of traits",
-			"that can be inherited by others (using Inherits:) and not a real unit.",
-			"You can remove inherited traits by adding a - infront of them as in -TraitName: to inherit everything, but this trait.")]
+		public const string AbstractActorPrefix = "^";
+
+		/// <summary>
+		/// The actor name can be anything, but the sprites used in the Render*: traits default to this one.
+		/// If you add an ^ in front of the name, the engine will recognize this as a collection of traits
+		/// that can be inherited by others (using Inherits:) and not a real unit.
+		/// You can remove inherited traits by adding a - in front of them as in -TraitName: to inherit everything, but this trait.
+		/// </summary>
 		public readonly string Name;
-		public readonly TypeDictionary Traits = new TypeDictionary();
+		readonly TypeDictionary traits = new TypeDictionary();
 		List<ITraitInfo> constructOrderCache = null;
 
-		public ActorInfo(string name, MiniYaml node, Dictionary<string, MiniYaml> allUnits)
+		public ActorInfo(ObjectCreator creator, string name, MiniYaml node)
 		{
 			try
 			{
-				var mergedNode = MergeWithParent(node, allUnits).ToDictionary();
-
 				Name = name;
-				foreach (var t in mergedNode)
-					if (t.Key != "Inherits" && !t.Key.StartsWith("-"))
-						Traits.Add(LoadTraitInfo(t.Key.Split('@')[0], t.Value));
+
+				foreach (var t in node.Nodes)
+				{
+					try
+					{
+						traits.Add(LoadTraitInfo(creator, t.Key.Split('@')[0], t.Value));
+					}
+					catch (FieldLoader.MissingFieldsException e)
+					{
+						throw new YamlException(e.Message);
+					}
+				}
+
+				traits.TrimExcess();
 			}
 			catch (YamlException e)
 			{
@@ -46,44 +60,30 @@ namespace OpenRA
 			}
 		}
 
-		static MiniYaml GetParent(MiniYaml node, Dictionary<string, MiniYaml> allUnits)
+		public ActorInfo(string name, params ITraitInfo[] traitInfos)
 		{
-			MiniYaml inherits;
-			node.ToDictionary().TryGetValue("Inherits", out inherits);
-			if (inherits == null || string.IsNullOrEmpty(inherits.Value))
-				return null;
-
-			MiniYaml parent;
-			allUnits.TryGetValue(inherits.Value, out parent);
-			if (parent == null)
-				throw new InvalidOperationException(
-					"Bogus inheritance -- actor type {0} does not exist".F(inherits.Value));
-
-			return parent;
+			Name = name;
+			foreach (var t in traitInfos)
+				traits.Add(t);
+			traits.TrimExcess();
 		}
 
-		static MiniYaml MergeWithParent(MiniYaml node, Dictionary<string, MiniYaml> allUnits)
-		{
-			var parent = GetParent(node, allUnits);
-			if (parent != null)
-			{
-				var result = MiniYaml.MergeStrict(node, MergeWithParent(parent, allUnits));
-
-				// strip the '-'
-				result.Nodes.RemoveAll(a => a.Key.StartsWith("-"));
-				return result;
-			}
-
-			return node;
-		}
-
-		static ITraitInfo LoadTraitInfo(string traitName, MiniYaml my)
+		static ITraitInfo LoadTraitInfo(ObjectCreator creator, string traitName, MiniYaml my)
 		{
 			if (!string.IsNullOrEmpty(my.Value))
 				throw new YamlException("Junk value `{0}` on trait node {1}"
 				.F(my.Value, traitName));
-			var info = Game.CreateObject<ITraitInfo>(traitName + "Info");
-			FieldLoader.Load(info, my);
+			var info = creator.CreateObject<ITraitInfo>(traitName + "Info");
+			try
+			{
+				FieldLoader.Load(info, my);
+			}
+			catch (FieldLoader.MissingFieldsException e)
+			{
+				var header = "Trait name " + traitName + ": " + (e.Missing.Length > 1 ? "Required properties missing" : "Required property missing");
+				throw new FieldLoader.MissingFieldsException(e.Missing, header);
+			}
+
 			return info;
 		}
 
@@ -92,7 +92,7 @@ namespace OpenRA
 			if (constructOrderCache != null)
 				return constructOrderCache;
 
-			var source = Traits.WithInterface<ITraitInfo>().Select(i => new
+			var source = traits.WithInterface<ITraitInfo>().Select(i => new
 			{
 				Trait = i,
 				Type = i.GetType(),
@@ -103,9 +103,15 @@ namespace OpenRA
 			var unresolved = source.Except(resolved);
 
 			var testResolve = new Func<Type, Type, bool>((a, b) => a == b || a.IsAssignableFrom(b));
-			var more = unresolved.Where(u => u.Dependencies.All(d => resolved.Exists(r => testResolve(d, r.Type))));
 
-			// Re-evaluate the vars above until sorted
+			// This query detects which unresolved traits can be immediately resolved as all their direct dependencies are met.
+			var more = unresolved.Where(u =>
+				u.Dependencies.All(d => // To be resolvable, all dependencies must be satisfied according to the following conditions:
+					resolved.Exists(r => testResolve(d, r.Type)) && // There must exist a resolved trait that meets the dependency.
+					!unresolved.Any(u1 => testResolve(d, u1.Type)))); // All matching traits that meet this dependency must be resolved first.
+
+			// Continue resolving traits as long as possible.
+			// Each time we resolve some traits, this means dependencies for other traits may then be possible to satisfy in the next pass.
 			while (more.Any())
 				resolved.AddRange(more);
 
@@ -125,14 +131,14 @@ namespace OpenRA
 					exceptionString += u.Type + ": { " + string.Join(", ", deps) + " }\r\n";
 				}
 
-				throw new Exception(exceptionString);
+				throw new YamlException(exceptionString);
 			}
 
 			constructOrderCache = resolved.Select(r => r.Trait).ToList();
 			return constructOrderCache;
 		}
 
-		static IEnumerable<Type> PrerequisitesOf(ITraitInfo info)
+		public static IEnumerable<Type> PrerequisitesOf(ITraitInfo info)
 		{
 			return info
 				.GetType()
@@ -143,7 +149,7 @@ namespace OpenRA
 
 		public IEnumerable<Pair<string, Type>> GetInitKeys()
 		{
-			var inits = Traits.WithInterface<ITraitInfo>().SelectMany(
+			var inits = traits.WithInterface<ITraitInfo>().SelectMany(
 				t => t.GetType().GetInterfaces()
 					.Where(i => i.IsGenericType && i.GetGenericTypeDefinition() == typeof(UsesInit<>))
 					.Select(i => i.GetGenericArguments()[0])).ToList();
@@ -153,6 +159,20 @@ namespace OpenRA
 			return inits.Select(
 				i => Pair.New(
 					i.Name.Replace("Init", ""), i));
+		}
+
+		public bool HasTraitInfo<T>() where T : ITraitInfoInterface { return traits.Contains<T>(); }
+		public T TraitInfo<T>() where T : ITraitInfoInterface { return traits.Get<T>(); }
+		public T TraitInfoOrDefault<T>() where T : ITraitInfoInterface { return traits.GetOrDefault<T>(); }
+		public IEnumerable<T> TraitInfos<T>() where T : ITraitInfoInterface { return traits.WithInterface<T>(); }
+
+		public BitSet<TargetableType> GetAllTargetTypes()
+		{
+			// PERF: Avoid LINQ.
+			var targetTypes = new BitSet<TargetableType>();
+			foreach (var targetable in TraitInfos<ITargetableInfo>())
+				targetTypes = targetTypes.Union(targetable.GetTargetTypes());
+			return targetTypes;
 		}
 	}
 }
